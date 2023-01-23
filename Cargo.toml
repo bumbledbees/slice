@@ -1,0 +1,9 @@
+[package]
+name = "slice"
+author = "bumbledbees"
+description = "grabs an arbitrary size slice out of a file"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["cargo"] }
