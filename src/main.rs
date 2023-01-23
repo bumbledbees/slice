@@ -1,13 +1,18 @@
 use std::io::prelude::*;
 use std::io::{SeekFrom};
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use clap::{arg, command, value_parser};
+use clap::{arg, command, value_parser,
+           crate_description, crate_version, crate_authors};
 
 
 fn main() {
     let args = command!()
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
+        .after_help("byte counts must be in decimal... for now")
         .arg(
             arg!([input] "file to read")
             .required(true)
@@ -58,18 +63,33 @@ fn main() {
             input - skip
         };
 
-    let output = args.get_one::<PathBuf>("output");
-    match output {
-        Some(output) => {
-            let mut output =
-                File::create(output)
-                .expect("error creating output file!");
-            slice(bytes, skip, &mut input, &mut output).unwrap();
+    // type annotations for my sanity lol
+    let mut output: Box<dyn Write>;
+    let output_path: Option<&PathBuf> =
+        args.get_one::<PathBuf>("output");
+    match output_path {
+        Some(output_path) => {
+            let output_path: &Path = output_path.as_path();
+            output = match output_path.to_str() {
+                Some(s) => {
+                    if s == "-" {
+                        Box::new(std::io::stdout())
+                    } else {
+                        Box::new(
+                            File::create(s)
+                            .expect("error creating output file!")
+                        )
+                    }
+                },
+                None => panic!("invalid UTF-8 in output file!"),
+            };
         },
         None => {
-            slice(bytes, skip, &mut input, &mut std::io::stdout()).unwrap();
+            output = Box::new(std::io::stdout());
         },
     };
+    slice(bytes, skip, &mut input, &mut output)
+        .expect("error slicing file :O!");
 }
 
 fn slice<R: Read + Seek, W: Write>
