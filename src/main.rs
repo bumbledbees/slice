@@ -1,18 +1,48 @@
 use std::io::prelude::*;
-use std::io::{SeekFrom};
+use std::io::SeekFrom;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-use clap::{arg, command, value_parser,
-           crate_description, crate_version, crate_authors};
+use clap::{arg, command, value_parser, Arg, Command, crate_authors};
+use clap::builder::{ValueParser, StringValueParser, TypedValueParser};
+use clap::error::{Error, ErrorKind};
 
+#[derive(Clone)]
+struct PrefixedU64ValueParser;
+
+impl TypedValueParser for PrefixedU64ValueParser {
+    type Value = u64;
+
+    fn parse_ref(
+        &self, cmd: &Command, arg: Option<&Arg>, value: &OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let inner = StringValueParser::new();
+        let num = inner.parse_ref(cmd, arg, value)?;
+        let prefix = &num[0..2];
+        let (prefix, base) = match prefix {
+            "0x" => (Some("0x"), 16),
+            "0o" => (Some("0o"), 8),
+            "0b" => (Some("0b"), 2),
+            _ => (None, 10),
+        };
+        let num = match prefix {
+            Some(p) => num.trim_start_matches(p),
+            None => &num,
+        };
+        return match u64::from_str_radix(num, base) {
+            Err(e) => {
+                Err(Error::raw(ErrorKind::InvalidValue, e.to_string()))
+            },
+            Ok(t) => Ok(t),
+        };
+    }
+}
 
 fn main() {
     let args = command!()
-        .version(crate_version!())
         .author(crate_authors!())
-        .about(crate_description!())
-        .after_help("byte counts must be in decimal... for now")
+        .after_help("no specifying a byte to stop on... for now")
         .arg(
             arg!([input] "file to read")
             .required(true)
@@ -26,12 +56,12 @@ fn main() {
         .arg(
             arg!(-n --bytes <bytes> "number of bytes to read (default: all)")
             .required(false)
-            .value_parser(value_parser!(u64)),
+            .value_parser(ValueParser::new(PrefixedU64ValueParser)),
         )
         .arg(
             arg!(-s --skip <skip> "number of bytes to skip (default: 0)")
             .required(false)
-            .value_parser(value_parser!(u64)),
+            .value_parser(ValueParser::new(PrefixedU64ValueParser)),
         )
         .get_matches();
 
@@ -92,9 +122,9 @@ fn main() {
         .expect("error slicing file :O!");
 }
 
-fn slice<R: Read + Seek, W: Write>
-(bytes: u64, skip: u64, input: &mut R, output: &mut W)
--> std::io::Result<()> {
+fn slice<R: Read + Seek, W: Write>(
+    bytes: u64, skip: u64, input: &mut R, output: &mut W
+)-> std::io::Result<()> {
     let mut data = Vec::with_capacity(bytes as usize);
     {
         if skip > 0 { input.seek(SeekFrom::Start(skip))?; }
