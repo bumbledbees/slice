@@ -1,8 +1,8 @@
 [package]
 name = "slice"
-author = "bumbledbees"
+authors = ["bumbledbees"]
 description = "grabs an arbitrary size slice out of a file"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 [dependencies]
