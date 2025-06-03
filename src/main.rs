@@ -40,27 +40,27 @@ fn main() {
     let args = command!()
         .after_help("no reading from stdin... for now")
         .arg(
-            arg!([input] "file to read")
+            arg!([input] "path of the file to read")
             .required(true)
             .value_parser(value_parser!(PathBuf))
         )
         .arg(
-            arg!(-o --output <output> "file to output to (default: stdout)")
+            arg!(-o --output <output> "file to output to. default: stdout")
             .required(false)
             .value_parser(value_parser!(PathBuf))
         )
         .arg(
-            arg!(-n --bytes <bytes> "number of bytes to read (default: all)")
+            arg!(-n --bytes <bytes> "number of bytes to read. default: all")
             .required(false)
             .value_parser(ValueParser::new(PrefixedU64ValueParser))
         )
         .arg(
-            arg!(-s --skip <skip> "number of bytes to skip (default: 0)")
+            arg!(-s --start <start> "byte to start reading at (inclusive). default: 0")
             .required(false)
             .value_parser(ValueParser::new(PrefixedU64ValueParser))
         )
         .arg(
-            arg!(-e --end <end> "byte to stop reading on")
+            arg!(-e --end <end> "byte to stop reading at (exclusive). default: last byte")
             .required(false)
             .value_parser(ValueParser::new(PrefixedU64ValueParser))
         )
@@ -80,7 +80,7 @@ fn main() {
     }
     let mut input = File::open(input).expect("error opening input file!");
 
-    let (skip, bytes) = {
+    let (start, bytes) = {
         let input_len =
             input.metadata().expect("error reading file metadata!").len();
 
@@ -88,7 +88,7 @@ fn main() {
         // toss out all the options that weren't specified,
         // unwrap the rest into tuples of form (option_name, option_value)
         let mut opt_stack: Vec<(&str, u64)> =
-            ["skip", "bytes", "end"]
+            ["start", "bytes", "end"]
             .into_iter()
             .map(|o| (o, args.get_one::<u64>(o)))
             .filter(|(_, v)| v.is_some())
@@ -96,29 +96,29 @@ fn main() {
             .collect();
 
         {
-            // the spicy fold checks for the presence of the skip and bytes
+            // the spicy fold checks for the presence of the start and bytes
             // flags. it effectively has two accumulators, one (a_n) to hold
             // the number of values it finds, and one (a_v) to hold the value
-            // of skip + bytes, should it read both opts (i.e. if a_n == 2)
-            let (opt_count, skip_bytes) =
+            // of start + bytes, should it read both opts (i.e. if a_n == 2)
+            let (opt_count, start_bytes) =
                 opt_stack
                 .iter()
                 .fold(
                     (0, 0),
                     |(a_n, a_v), (k, v)| {
-                        if *k == "skip" || *k == "bytes" { (a_n + 1, a_v + v) }
+                        if *k == "start" || *k == "bytes" { (a_n + 1, a_v + v) }
                         else { (a_n, a_v) }
                     }
                 );
             if opt_count == 2 {
-                opt_stack.insert(2, ("skip + bytes", skip_bytes));
+                opt_stack.insert(2, ("start + bytes", start_bytes));
             }
         }
 
         opt_stack.push(("input file size", input_len));
         opt_stack.sort_by(|(_, a), (_, b)| a.cmp(b));
         if let Some((k, _)) = opt_stack.pop() {
-            if k != "input file size" { 
+            if k != "input file size" {
                 panic!("value of {k} cannot exceed input file size!");
             }
         };
@@ -138,14 +138,14 @@ fn main() {
         };
 
         match opt_stack.pop() {
-            Some((k, _)) if k == "skip + bytes" => {
+            Some((k, _)) if k == "start + bytes" => {
                 match opt_stack[0..2] {
-                    [(k, skip), (_, bytes)] if k == "skip" => (skip, bytes),
-                    [(k, bytes), (_, skip)] if k == "bytes" => (skip, bytes),
+                    [(k, start), (_, bytes)] if k == "start" => (start, bytes),
+                    [(k, bytes), (_, start)] if k == "bytes" => (start, bytes),
                     _ => panic!("forbidden error! pls file a bug report!"),
                 }
             },
-            Some((k, skip)) if k == "skip" => (skip, input_len - skip),
+            Some((k, start)) if k == "start" => (start, input_len - start),
             Some((k, bytes)) if k == "bytes" => (0, bytes),
             _ => (0, input_len),
         }
@@ -164,16 +164,18 @@ fn main() {
             None => Box::new(std::io::stdout()),
         }
     };
-    
-    slice(bytes, skip, &mut input, &mut output).unwrap();
+
+    slice(bytes, start, &mut input, &mut output).unwrap();
 }
 
+/// Reads `bytes` bytes from the stream `input`, starting at byte `start` into
+/// the stream `output`.
 fn slice<R: Read + Seek, W: Write>(
-    bytes: u64, skip: u64, input: &mut R, output: &mut W
+    bytes: u64, start: u64, input: &mut R, output: &mut W
 )-> std::io::Result<()> {
     let mut data = Vec::with_capacity(bytes as usize);
     {
-        if skip > 0 { input.seek(SeekFrom::Start(skip))?; }
+        if start > 0 { input.seek(SeekFrom::Start(start))?; }
         input.take(bytes).read_to_end(&mut data)?;
     }
     output.write_all(&data)?;

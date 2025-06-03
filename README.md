@@ -10,13 +10,13 @@ still a work in progress!
 
 #### arguments
 
-* **\<input\>** : path of the file to read
+- \<input\> : path of the file to read
 
 #### options
 
-* -o, --output **\<output\>** : file to output (default: stdout)
-* -n, --bytes **\<bytes\>** : number of bytes to read (default: all)
-* -s, --skip **\<skip\>** : number of bytes to skip (default: 0)
-* -e, --end **\<end\>** : byte to stop reading on
-* -h, --help : print help
-* -V, --version : print version
+- **-o, --output** \<output\> : \file to output to. default: stdout
+- **-n, --bytes** \<bytes\> : number of bytes to read. default: all
+- **-s, --start** \<start\> : byte to start reading at (inclusive). default: 0
+- **-e, --end** \<end\> : byte to stop reading at (exclusive). default: last byte
+- **-h, --help** : print help
+- **-V, --version** : print version
