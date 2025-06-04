@@ -4,8 +4,8 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::PathBuf;
 
-use clap::{arg, command, value_parser, Arg, Command};
-use clap::builder::{ValueParser, StringValueParser, TypedValueParser};
+use clap::{Arg, Command, CommandFactory, Parser};
+use clap::builder::{StringValueParser, TypedValueParser};
 use clap::error::{Error, ErrorKind};
 
 #[derive(Clone)]
@@ -36,35 +36,32 @@ impl TypedValueParser for PrefixedU64ValueParser {
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+#[command(after_help = "no reading from stdin... for now")]
+struct Args {
+    /// path of the file to read
+    input: PathBuf,
+
+    /// file to output to. default: stdout
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// number of bytes to read. default: all
+    #[arg(short = 'n', long, value_parser = PrefixedU64ValueParser)]
+    bytes: Option<u64>,
+
+    /// byte to start reading at (inclusive). default: 0
+    #[arg(short, long, value_parser = PrefixedU64ValueParser)]
+    start: Option<u64>,
+
+    /// byte to stop reading at (exclusive). default: last byte
+    #[arg(short, long, value_parser = PrefixedU64ValueParser)]
+    end: Option<u64>,
+}
+
 fn main() {
-    let args = command!()
-        .after_help("no reading from stdin... for now")
-        .arg(
-            arg!([input] "path of the file to read")
-            .required(true)
-            .value_parser(value_parser!(PathBuf))
-        )
-        .arg(
-            arg!(-o --output <output> "file to output to. default: stdout")
-            .required(false)
-            .value_parser(value_parser!(PathBuf))
-        )
-        .arg(
-            arg!(-n --bytes <bytes> "number of bytes to read. default: all")
-            .required(false)
-            .value_parser(ValueParser::new(PrefixedU64ValueParser))
-        )
-        .arg(
-            arg!(-s --start <start> "byte to start reading at (inclusive). default: 0")
-            .required(false)
-            .value_parser(ValueParser::new(PrefixedU64ValueParser))
-        )
-        .arg(
-            arg!(-e --end <end> "byte to stop reading at (exclusive). default: last byte")
-            .required(false)
-            .value_parser(ValueParser::new(PrefixedU64ValueParser))
-        )
-        .get_matches();
+    let args = Args::command().get_matches();
 
     // input is required, unwrap shouldn't fail
     let input = args.get_one::<PathBuf>("input").unwrap();
